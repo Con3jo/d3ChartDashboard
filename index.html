@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+
+	<title>Page Title</title>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+
+	<script type="application/json" src="json.json"></script>
+	<script src="https://d3js.org/d3.v5.min.js"></script>
+
+</head>
+<style>
+	.bar{
+		fill: rgb(10,10,10);
+	}
+	body{
+		font-family: sans-serif;
+	}
+
+	ul{
+		list-style-type: none;
+	}
+	/*Legend*/
+
+	.legendColor{
+		width: 10px;
+		height: 10px;
+		display: inline-block;
+	}
+	.legendLabel{
+
+	}
+
+	.arc text {
+  font: 10px sans-serif;
+  text-anchor: middle;
+}
+
+.arc path {
+  stroke: #fff;
+}
+polyline{
+    opacity: .3;
+    stroke: black;
+    stroke-width: 2px;
+    fill: none;
+}
+
+
+</style>
+<body>
+	<div id="dashboard"></div>
+	<script>
+
+	   var jsonString = '{"choosenID":"ARBID10001591","requestProcessTime":"PT0.249S","viewID":"MANDT1000|BUKRS1000|WERKS1000","data":{"chartsArray":[{"yAxisName":"Kapazität in H","data":[{"_id":"1000","value1":421.08303054962107,"value":564.2333333333333,"name":"1000","currency":"H"}],"orient":"horizontal","chartTitle":"Kapazitäten (im Zeitraum)","lineTitles":["Soll-Kapazität","Rest-Kapazität"],"collumNumber":"1","rowNumber":"2","type":"bar"},{"yAxisName":"Zeiten in H","data":[{"_id":"10001591","value2":882,"value1":790,"value3":888.4666666666667,"value":92,"name":"10001591","currency":"H"}],"orient":"vertical","chartTitle":"Durchschnittliche Prozesszeiten (im Zeitraum)","lineTitles":["Rüstzeit","Bearbeitungszeit","Durchführzeit","Durchlaufzeit"],"collumNumber":"2-3","rowNumber":"2","type":"bar"},{"yAxisName":"Stück","data":[{"_id":"1000","value2":0,"value1":18,"value":50,"name":"1000","currency":"St"}],"orient":null,"chartTitle":"Mengen (im Zeitraum)","lineTitles":["Planmenge","Gutmenge","Ausschuss"],"collumNumber":"1","rowNumber":"3","type":"donut"},{"data":[{"_id":"10002868","value":1,"name":"BEARBEITUNGSZENTRUM DMF 360 (Y1100)"},{"_id":"10001577","value":2,"name":"BOHRMASCH RABOMA"},{"_id":"10002996","value":2,"name":"RUNDSCHLEIFMASCHINE WEMA"},{"_id":"10002418","value":1,"name":"DREHMASCH WOHLENB PT1-1250 x 5000"},{"_id":"10001548","value":6,"name":"FEINPUTZ/ENTGRATEN"}],"orient":null,"chartTitle":"Nachfolger (im Zeitraum)","collumNumber":"3","rowNumber":"3","type":"pie"},{"data":[{"_id":"10002868","value":1,"name":"BEARBEITUNGSZENTRUM DMF 360 (Y1100)"},{"_id":"10001577","value":4,"name":"BOHRMASCH RABOMA"},{"_id":"10002418","value":1,"name":"DREHMASCH WOHLENB PT1-1250 x 5000"},{"_id":"10001796","value":1,"name":"ROHMATBEREITSTELLUNG"},{"_id":"10001962","value":2,"name":"DREHAUTOMAT CNC VDF 250"}],"orient":null,"chartTitle":"Vorgänger (im Zeitraum)","collumNumber":"2","rowNumber":"3","type":"pie"}],"endDate":"20180601","name":"BEARBZENTREX-CELL-O XB 630","startDate":"20180401"},"requestID":"Request dashboard","separator":"|"}';
+
+	   	var dataJSON = JSON.parse(jsonString);
+	   	var dataCharts = dataJSON.data.chartsArray;
+	   	var margin = {top:20, bottom:50, left:50, right:50};
+	   	var width = 1024 - margin.left - margin.right;
+	   	var height = 200 - margin.top - margin.bottom;
+	   	var radius = 100;//Math.floor(height/2);
+	   	let positions = [];
+	   	let posWidth = [];
+	   	let rowsIndex = [];
+
+	   	let rows = [];
+	   	for(let i = 0; i<dataCharts.length; i++){
+	   		if(rowsIndex.indexOf(parseInt(dataCharts[i].rowNumber))<0)
+	   			rowsIndex.push(parseInt(dataCharts[i].rowNumber));
+	   	}
+	   	for(let i = 0; i<rowsIndex.length; i++){
+	   		rows.push({pos: rowsIndex[i], len: 0});
+
+	   	}
+	   	//console.log(rows);	
+	   	for(let i = 0; i<dataCharts.length; i++){
+
+	   		positions.push(dataCharts[i].collumNumber.split("-").map(d=>parseInt(d)));
+		}
+	   	for(let i = 0; i<dataCharts.length; i++){
+	   		for(let j = 0; j<rows.length; j++){
+	   			if(rows[j].pos === parseInt(dataCharts[i].rowNumber)){
+	   				rows[j].len+=positions[i].length;
+	   			}
+	   		}
+	   	}
+	   	console.log(rows, positions);
+
+	   	for(let i = 0; i<dataCharts.length; i++){
+	   		//console.log(dataCharts[i]);
+	   		let currentChart = dataCharts[i];
+			var container = d3.select('#dashboard');
+
+	   		if(currentChart.type === "bar"){
+	   			renderBarChart(currentChart, container, i);
+	   		}else if(currentChart.type === "pie"){
+	   			renderPieChart(currentChart, container);
+	   		}else if(currentChart.type === "donut"){
+				var container = d3.select('#dashboard');
+	   		}
+	   	}
+	   	//bar
+	   	function renderBarChart(chartData, containerElement, index){
+	   		let barData = formatData(chartData,chartData.type);
+	   		let rowNumber = parseInt(chartData.rowNumber);
+	   		let collumNumber = chartData.collumNumber.split("-").map(d=>parseInt(d));
+	   		let rowLength = 0;
+			var barcolors = d3.schemeCategory10;
+
+	   		for(let i = 0; i<rows.length; i++){
+	   			if(rowNumber===rows[i].pos) {rowLength = rows[i].len; break;}
+
+	   		}
+	   		console.log(rowNumber, collumNumber, rowLength, height*(rowNumber));
+	   		let proportionalW = width*collumNumber.length/rowLength;
+
+	   		if(chartData.orient == "vertical"){
+		   		var barChart = containerElement.append("svg")
+		   			//.attr("transform", "translate("+margin.left+","+margin.top+")")
+
+		   			.attr("transform", "translate("+margin.left+","+(margin.top+height*(rowNumber))+")")
+		   			.attr("width",proportionalW + margin.left + margin.right)
+		   			.attr("height",height + margin.top + margin.bottom);
+
+		   		var x = d3.scaleBand()
+		   			.range([0, proportionalW]).padding(1/barData.length)
+		   			.domain(barData.map(function(d){
+		   				return d.name;	
+		   			}))
+		   			;
+		   		
+				var y = d3.scaleLinear()
+			   		.range([height, 0])
+			   		.domain([0, d3.max(barData,function(d){
+			   			return d.value;
+			   		})]);
+		   		
+		   		var xAxis = d3.axisBottom(x);
+		   		var yAxis = d3.axisLeft(y);
+		   		var xAxisChart = barChart.append("g").call(xAxis)
+		   			.attr("transform", "translate(0,"+height+")");
+		   		var yAxisChart = barChart.append("g").call(yAxis);
+
+		   		var bars = barChart.selectAll(".bars")
+		   			.data(barData)
+		   			.enter()
+		   			.append("rect").          
+		   			attr("fill", function (d, i){ return barcolors[i]; })
+		   			.attr("x", function(d){
+		   				return x(d.name);
+		   			})
+		   			.attr("y", function(d){
+		   				return y(d.value);
+		   			})
+		   			.attr("width", x.bandwidth()).attr("height",function(d){
+		   				//console.log(height, y(d.value));
+		   				return height - y(d.value);
+		   			});
+	   		}else{
+		   		var barChart = containerElement.append("svg")
+		   			.attr("transform", "translate("+margin.left+","+(margin.top+height*(rowNumber))+")")
+		   			.attr("width",proportionalW + margin.left + margin.right)
+		   			.attr("height",height + margin.top + margin.bottom);
+		   		
+		   		var x = d3.scaleLinear()
+		   			.range([0, proportionalW])	
+			   		.domain([0, d3.max(barData,function(d){
+			   			return d.value;
+			   		})]);
+		   		
+				var y = d3.scaleBand()
+			   		.range([height, 0]).padding(1/barData.length)
+		   			.domain(barData.map(function(d){
+		   				return d.name;	
+		   			}))
+		   			;
+		   		
+		   		var xAxis = d3.axisBottom(x);
+		   		var yAxis = d3.axisLeft(y);
+		   		var xAxisChart = barChart.append("g").call(xAxis)
+		   			.attr("transform", "translate(0,"+height+")");
+		   		var yAxisChart = barChart.append("g").call(yAxis);
+
+		   		var bars = barChart.selectAll(".bars")
+		   			.data(barData)
+		   			.enter()
+		   			.append("rect").attr("fill", function (d, i){ return barcolors[i]; })
+		   			.attr("y", function(d){
+		   				return y(d.name);
+		   			})
+		   			.attr("height", y.bandwidth())
+		   			.attr("x", 0)
+		   			.attr("width", function(d){
+		   				return x(d.value);
+		   			});
+	   		}
+
+	   	}
+	   	//bar legend
+	   	function renderBarLegend(barData, barChart){
+	   		var labels = barData.map(function(d){return d.name;});
+	   		var legend = barChart.append("div")
+		   		.attr("transform", "translate("+margin.left+","+margin.top+")")
+	   			.attr("width",100).attr("height",100)
+	   			.append("ul").selectAll("li").data(barData).enter().append("li");	
+
+	   		legend.append("span")
+		   		.attr("class","legendColor")
+		   		.style("background-color", "fff");
+		   	legend.append("span")
+		   		.attr("class","legendLabel")
+		   		.html(function(d){return d.name;});
+
+	   	}
+
+	   	//pie
+	   	function renderPieChart(chartData, containerElement, index){
+	   		let pieData = formatData(chartData,chartData.type);
+	   		//console.log(pieData);
+			var piecolors = d3.schemeCategory10;
+	   		let rowNumber = parseInt(chartData.rowNumber);
+	   		let collumNumber = chartData.collumNumber.split("-").map(d=>parseInt(d));
+	   		let rowLength = 0;
+	   		for(let i = 0; i<rows.length; i++){
+	   			if(rowNumber===rows[i].pos) {rowLength = rows[i].len; break;}
+
+	   		}
+	   		console.log("renderPieChart",rowNumber, collumNumber, rowLength);
+	   		let width = 1024, height = 768;
+
+	   		var arc = d3.arc()
+			    .outerRadius(radius - 10)
+			    .innerRadius(0);
+
+			var labelArc = d3.arc()
+			    .outerRadius(radius - 40)
+			    .innerRadius(radius - 40);
+
+            var outerArc = d3.arc()
+                .outerRadius(radius * 0.9)
+                .innerRadius(radius * 0.9);
+			var pie = d3.pie()
+			    .sort(null)
+			    .value(function(d) { return d.value; });
+
+			var pieChart = containerElement.append("svg")
+			    .attr("width", width)
+			    .attr("height", height)
+			  .append("g")
+			    .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+			var g = pieChart.selectAll(".arc")
+			      .data(pie(pieData))
+			    .enter().append("g")
+			      .attr("class", "arc");
+
+			g.append("path")
+			      .attr("d", arc)
+			      .style("fill", function(d,i) { return piecolors[i]; });
+
+			g.append('polyline')
+                .attr('points', function(d) {
+  
+                    // see label transform function for explanations of these three lines.
+                    var pos = outerArc.centroid(d);
+                    pos[0] = radius * 0.95 * ((d.startAngle + (d.endAngle - d.startAngle) / 2) < Math.PI ? 1 : -1);
+                    return [arc.centroid(d), outerArc.centroid(d), pos]
+                });
+
+			g.append("text").attr('transform', function(d) {
+		            var pos = outerArc.centroid(d);
+	                    pos[0] = radius * 1.5 * ((d.startAngle + (d.endAngle - d.startAngle) / 2) < Math.PI ? 1 : -1);
+	                    pos[1] = pos[1] - 10;
+	                    //console.log(pos);
+	                    return 'translate(' + pos + ')';
+		            })
+			      //.attr("transform", function(d) { return "translate(" + labelArc.centroid(d) + ")"; })
+			      .attr("dy", ".35em")
+			      .text(function(d) { return d.data.name; });
+
+
+	   	}
+	   	//donut
+
+	   	function formatData(originalData, chartType){
+	   		let returnData = [];
+	   		if(chartType === "bar" || chartType === "donut"){
+	   			let dataKeys = Object.keys(originalData.data[0]);
+	   			dataKeys = dataKeys.filter(key =>key.indexOf("value")==0);
+	   			dataKeys.sort();
+	   			let dataNames = originalData.lineTitles;
+	   			for(let i = 0; i<dataKeys.length; i++){
+	   				returnData.push({name: dataNames[i], value: originalData.data[0][dataKeys[i]]});
+	   			}
+	   			//console.log(returnData)
+	   		}else{ //pie
+	   			return originalData.data;
+	   		}
+	   		return returnData;
+	   	}
+
+
+	</script>
+
+
+</body>
+</html>
